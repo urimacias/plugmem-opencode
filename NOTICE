@@ -1,0 +1,34 @@
+plugmem-opencode
+Copyright 2026 Uri Jatniel Macías Soltero
+
+This product includes software developed as part of the PlugMem project
+(https://github.com/TIMAN-group/plugmem), licensed under the Apache
+License, Version 2.0.
+
+The following files are vendored, with minor path adjustments only, from
+`plugmem-coding-core` (version 0.1.0):
+
+  src/vendor/core/adapter.ts
+  src/vendor/core/client.ts
+  src/vendor/core/config.ts
+  src/vendor/core/core.ts
+  src/vendor/core/index.ts
+  src/vendor/core/promotion.ts
+  src/vendor/core/recall.ts
+  src/vendor/core/repo_id.ts
+  src/vendor/core/transcript.ts
+  src/vendor/core/types.ts
+
+Run `npm run sync-core` to refresh them from a local PlugMem checkout.
+
+Local patches applied to the vendored core (all other lines unchanged):
+
+  src/vendor/core/client.ts — healthCheck() used "/health", which omits
+  the "/api/v1" prefix the rest of the client uses. Corrected to
+  "/api/v1/health".
+
+  src/vendor/core/repo_id.ts — deriveRepoGraphId() emitted ids such as
+  "repo://opencode/host/owner/repo", which PlugMem's graph manager
+  rejects (names must match [a-zA-Z0-9._-]{3,512}). Now emits
+  "repo.opencode.host.owner.repo"; the non-git fallback hashes the path.
+  Same identity, legal name.

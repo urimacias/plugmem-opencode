@@ -1,0 +1,21 @@
+// Example: ~/.config/opencode/opencode.jsonc
+//
+// OpenCode 2.x. Two install shapes. Use one.
+
+// A) Auto-discovered loader in ~/.config/opencode/plugins/plugmem.ts:
+//      export { default } from "/Users/you/dev/plugmem-opencode/dist/index.js";
+//
+// B) Explicit entry (this file):
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "/Users/you/dev/plugmem-opencode/dist/index.js",
+      "options": {
+        "baseUrl": "http://127.0.0.1:18080",
+        // Prefer ~/.config/opencode/plugmem.json (chmod 600) for the key.
+        "logLevel": "info"
+      }
+    }
+  ]
+}
