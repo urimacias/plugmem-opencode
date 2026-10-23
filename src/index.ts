@@ -55,6 +55,9 @@ const plugmem: PluginNS.Plugin = {
     const states = new SessionStates();
 
     const cwdBySession = new Map<string, string>();
+    // Subagent sessions inherit no memory and must not write any: their
+    // work is already covered by the parent session's transcript.
+    const childSessions = new Set<string>();
     const started = new Set<string>();
     const pending = new Map<string, string[]>();
     const promoting = new Set<string>();
@@ -66,6 +69,7 @@ const plugmem: PluginNS.Plugin = {
       if (cached) return cached;
       try {
         const info = await ctx.session.get({ sessionID });
+        if (info?.parentID) childSessions.add(sessionID);
         const dir = info?.location?.directory;
         if (dir) {
           cwdBySession.set(sessionID, dir);
@@ -105,6 +109,7 @@ const plugmem: PluginNS.Plugin = {
       if (started.has(sessionID)) return;
       started.add(sessionID);
       const cwd = await cwdFor(sessionID);
+      if (childSessions.has(sessionID)) return;
       const injection = await core.onSessionStart({
         harness: HARNESS,
         sessionId: sessionID,
@@ -158,10 +163,12 @@ const plugmem: PluginNS.Plugin = {
         try {
           const prompt = event.prompt?.text?.trim() ?? "";
           if (!prompt) return;
+          const cwd = await cwdFor(event.sessionID);
+          if (childSessions.has(event.sessionID)) return;
           const injection = await core.onUserPrompt({
             harness: HARNESS,
             sessionId: event.sessionID,
-            cwd: await cwdFor(event.sessionID),
+            cwd,
             prompt,
           });
           if (injection?.text) stash(event.sessionID, injection.text);
@@ -180,7 +187,9 @@ const plugmem: PluginNS.Plugin = {
             pending.delete(event.sessionID);
             event.system.push({ type: "text", text: wrap(blocks) });
           }
-          schedulePromotion(event.sessionID);
+          if (!childSessions.has(event.sessionID)) {
+            schedulePromotion(event.sessionID);
+          }
         } catch (err) {
           log("context hook failed", err);
         }
@@ -191,6 +200,7 @@ const plugmem: PluginNS.Plugin = {
       await ctx.session.hook("compaction", async (event) => {
         try {
           const cwd = await cwdFor(event.sessionID);
+          if (childSessions.has(event.sessionID)) return;
           // Persist what the gate holds before the transcript is replaced.
           await core.onPreCompact({
             harness: HARNESS,
@@ -220,10 +230,12 @@ const plugmem: PluginNS.Plugin = {
     track(
       await ctx.tool.hook("execute.before", async (event) => {
         try {
+          const cwd = await cwdFor(event.sessionID);
+          if (childSessions.has(event.sessionID)) return;
           await core.onPreTool({
             harness: HARNESS,
             sessionId: event.sessionID,
-            cwd: await cwdFor(event.sessionID),
+            cwd,
             toolName: event.tool,
             toolInput: event.input,
             callId: String(event.id),
@@ -237,6 +249,8 @@ const plugmem: PluginNS.Plugin = {
     track(
       await ctx.tool.hook("execute.after", async (event) => {
         try {
+          const cwd = await cwdFor(event.sessionID);
+          if (childSessions.has(event.sessionID)) return;
           const outcome = event.status === "completed" ? "success" : "failure";
           const raw =
             event.status === "completed"
@@ -245,7 +259,7 @@ const plugmem: PluginNS.Plugin = {
           await core.onPostTool({
             harness: HARNESS,
             sessionId: event.sessionID,
-            cwd: await cwdFor(event.sessionID),
+            cwd,
             toolName: event.tool,
             toolInput: event.input,
             callId: String(event.id),
